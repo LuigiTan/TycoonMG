@@ -1,37 +1,45 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.Xml.Serialization;
 using UnityEngine;
 
 public class PlayerMovement : MonoBehaviour
 {
     //Variables Publicas
     public Transform cameraAim;
-    public float walkSpeed, runSpeed, rotationSpeed;
+    public float walkSpeed, runSpeed, jumpForce, rotationSpeed;
     public bool canMove;
+    public GroundDetector groundDetector;
 
     //Variables privadas
-    private Vector3 vectorMovement;
-    private float speed;
+    private Vector3 vectorMovement, verticalForce;
+    private float speed, currentSpeed;
+    private bool isGrounded;
     private CharacterController characterController;
     // Start is called before the first frame update
     void Start()
     {
 
         characterController = GetComponent<CharacterController>();
-        speed = walkSpeed;
+        speed = 0f;
+        currentSpeed = 0f;  
+        verticalForce = Vector3.zero;
         vectorMovement = Vector3.zero;
     }
 
     
     void Update()
     {
+        //Si nos podemos mover
         if (canMove)
         {
             Walk();
             Run();
             AlignPlayer();
+            Jump();
         }
         Gravity();
+        CheckGround();
     }
     //Funciones para caminar
     void Walk()        
@@ -44,6 +52,9 @@ public class PlayerMovement : MonoBehaviour
 
         //Nos movemos en direccion a la camara
         vectorMovement = cameraAim.TransformDirection(vectorMovement);
+
+        //Guardamos la velocidad actual con suavizado
+        currentSpeed = Mathf.Lerp(currentSpeed, vectorMovement.magnitude * speed, 10f * Time.deltaTime);
 
         //Movemos al player
         characterController.Move(vectorMovement* speed * Time.deltaTime);
@@ -61,10 +72,32 @@ public class PlayerMovement : MonoBehaviour
             speed = walkSpeed;
         }
     }
+
+    //Funcion para saltar
+    void Jump()
+    {
+        //Si estamos tocando el suelo y apretamos espacio
+        if(isGrounded && Input.GetAxis("Jump") > 0f)
+        {
+            verticalForce = new Vector3(0f, jumpForce, 0f);
+            isGrounded = false;
+        }
+    }
     //Funcion provisional de gravedad
     void Gravity()
     {
-        characterController.Move(new Vector3(0f, -4f * Time.deltaTime, 0f));
+        //Si no estamos tocando el suelo
+        if (!isGrounded)  
+        {
+            verticalForce += Physics.gravity * Time.deltaTime;       
+        }
+        else
+        {
+            verticalForce = new Vector3 (0f, -2f, 0f);
+        }
+
+        //Aplicar la fuerza vertical
+        characterController.Move(verticalForce * Time.deltaTime);
     }
 
     //Funcion para linear al jugador hacia donde se mueve
@@ -75,5 +108,15 @@ public class PlayerMovement : MonoBehaviour
         {
             transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(vectorMovement), rotationSpeed * Time.deltaTime);
         }
+    }
+    //Funcion para conseguir el valor de isGrounded del detector
+    void CheckGround()
+    {
+        isGrounded =groundDetector.GetIsGrounded();
+    }
+
+    public float GetCurrentSpeed()
+    {
+        return currentSpeed;
     }
 }
